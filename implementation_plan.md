@@ -52,9 +52,17 @@ Over time, the round-robin `turnCounter` would increase infinitely. To prevent i
 ---
 
 ## 5. API & Webhook Layer
-- **`POST /api/leads`**: The main ingestion endpoint. Returns `409 Conflict` for duplicates and `422 Unprocessable Entity` if provider quotas are full.
+
+### Webhook & Event Ingestion
+- **`POST /api/leads`**: The main ingestion endpoint. Invokes the core allocation engine.
 - **`GET /api/dashboard/stream`**: Utilizes standard Server-Sent Events (SSE) to push live database updates to the provider dashboard every 3 seconds. On the client side, the browser consumes this seamlessly using the native `EventSource` API, rendering live state updates via React hooks.
 - **`POST /api/webhook/reset-quota`**: An idempotent webhook that securely resets provider quotas. It checks the `WebhookIdempotencyKey` table in the same transaction to completely neutralize double-clicks or duplicate external events.
+
+### HTTP Error Handling Strategy
+The API is designed to return highly semantic, standard HTTP status codes mapping perfectly to the system's operational states:
+- **`409 Conflict`**: Returned when the database raises a duplicate lead key constraint violation (`P2002` on `phone` and `serviceId`). This signals that the request was syntactically valid but represents a duplicate attempt.
+- **`422 Unprocessable Entity`**: Returned when the allocation engine runs but fails to fulfill the business rules (such as our Strict 3-Provider Quota Guarantee). It represents semantic validation errors where the server understands the request but cannot process the execution due to exhausted quotas.
+- **`500 Internal Server Error`**: Returned as a catch-all safety buffer for unexpected server-side crashes, protecting database schema leaks from reaching frontend clients while logging detailed traces securely on the server.
 
 ---
 
